@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { sendChatMessage } from '../services/chatService';
 import { ChatMessage } from './ChatMessage';
 
@@ -11,6 +11,14 @@ export const NonStreamingChat: React.FC = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Auto-scroll to bottom when new messages arrive
+  useEffect(() => {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [messages, loading]);
 
   const handleSend = async () => {
     if (!input.trim() || loading) return;
@@ -61,6 +69,7 @@ export const NonStreamingChat: React.FC = () => {
             </div>
           </div>
         )}
+        <div ref={messagesEndRef} />
       </div>
       <div className="chat-input-container">
         <input

@@ -14,6 +14,15 @@ export const StreamingChat: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [streamingMessage, setStreamingMessage] = useState('');
   const subscriptionRef = useRef<Subscription | null>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
+
+  // Auto-scroll to bottom when new messages arrive or streaming updates
+  useEffect(() => {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [messages, streamingMessage]);
 
   useEffect(() => {
     return () => {
@@ -77,7 +86,7 @@ export const StreamingChat: React.FC = () => {
       <div className="chat-header">
         <h2>Streaming Chat</h2>
       </div>
-      <div className="chat-messages">
+      <div className="chat-messages" ref={messagesContainerRef}>
         {messages.length === 0 && !streamingMessage && (
           <div className="empty-state">
             Start a conversation with the AI assistant (streaming mode)
@@ -101,6 +110,7 @@ export const StreamingChat: React.FC = () => {
             </div>
           </div>
         )}
+        <div ref={messagesEndRef} />
       </div>
       <div className="chat-input-container">
         <input
