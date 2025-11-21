@@ -4,6 +4,7 @@ import { ChatMessage } from './ChatMessage';
 
 interface Message {
   text: string;
+  reasoningText?: string;
   isUser: boolean;
 }
 
@@ -30,7 +31,11 @@ export const NonStreamingChat: React.FC = () => {
 
     try {
       const response = await sendChatMessage({ message: userMessage });
-      setMessages((prev) => [...prev, { text: response.content, isUser: false }]);
+      setMessages((prev) => [...prev, { 
+        text: response.content || '', 
+        reasoningText: response.reasoningContent || undefined,
+        isUser: false 
+      }]);
     } catch (error) {
       setMessages((prev) => [
         ...prev,
@@ -60,12 +65,28 @@ export const NonStreamingChat: React.FC = () => {
           </div>
         )}
         {messages.map((msg, index) => (
-          <ChatMessage key={index} message={msg.text} isUser={msg.isUser} />
+          <ChatMessage 
+            key={index} 
+            message={msg.text} 
+            reasoningText={msg.reasoningText}
+            isUser={msg.isUser} 
+          />
         ))}
         {loading && (
           <div className="chat-message ai">
-            <div className="message-content loading">
-              <span className="typing-indicator">Thinking...</span>
+            <div className="message-columns">
+              <div className="message-column content-column">
+                <div className="column-label">Answer</div>
+                <div className="message-content loading">
+                  <span className="typing-indicator">Thinking...</span>
+                </div>
+              </div>
+              <div className="message-column reasoning-column">
+                <div className="column-label">Reasoning</div>
+                <div className="reasoning-content loading">
+                  <span className="typing-indicator">Thinking...</span>
+                </div>
+              </div>
             </div>
           </div>
         )}

@@ -4,5 +4,6 @@ export interface ChatRequest {
 
 export interface ChatResponse {
   content: string;
+  reasoningContent?: string;
 }
 

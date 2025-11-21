@@ -19,12 +19,17 @@ export async function sendChatMessage(request: ChatRequest): Promise<ChatRespons
   return response.json();
 }
 
-export function sendStreamingChatMessage(request: ChatRequest): Observable<string> {
-  return new Observable<string>((subscriber) => {
+export interface StreamingChunk {
+  content?: string;
+  reasoningContent?: string;
+}
+
+export function sendStreamingChatMessage(request: ChatRequest): Observable<StreamingChunk> {
+  return new Observable<StreamingChunk>((subscriber) => {
     let reader: ReadableStreamDefaultReader<Uint8Array> | null = null;
     let cancelled = false;
 
-    fetch(`${API_BASE_URL}/chat/streaming`, {
+    fetch(`${API_BASE_URL}/chat/stream`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -120,15 +125,30 @@ export function sendStreamingChatMessage(request: ChatRequest): Observable<strin
                 const jsonStr = text.substring(searchStart, end);
                 
                 const parsed = JSON.parse(jsonStr) as ChatResponse;
-                if (parsed && typeof parsed === 'object' && parsed.content) {
-                  const content = parsed.content;
+                if (parsed && typeof parsed === 'object') {
+                  // Emit both content and reasoningContent if present
+                  // Normalize null/undefined to empty strings to avoid showing "null"
+                  const chunk: StreamingChunk = {};
+                  if (parsed.content !== undefined && parsed.content !== null) {
+                    chunk.content = String(parsed.content);
+                  } else if (parsed.content === null || parsed.content === '') {
+                    chunk.content = '';
+                  }
+                  if (parsed.reasoningContent !== undefined && parsed.reasoningContent !== null) {
+                    chunk.reasoningContent = String(parsed.reasoningContent);
+                  } else if (parsed.reasoningContent === null || parsed.reasoningContent === '') {
+                    chunk.reasoningContent = '';
+                  }
                   
-                  // Emit content immediately for token-level streaming
-                  // If backend sends large chunks, we still emit them as-is since
-                  // the real-time processing (not waiting for newlines) ensures
-                  // we get content as soon as it arrives
-                  subscriber.next(content);
-                  lastProcessed = end;
+                  // Always emit if at least one field exists (even if empty string)
+                  if (chunk.content !== undefined || chunk.reasoningContent !== undefined) {
+                    // Emit content immediately for token-level streaming
+                    // If backend sends large chunks, we still emit them as-is since
+                    // the real-time processing (not waiting for newlines) ensures
+                    // we get content as soon as it arrives
+                    subscriber.next(chunk);
+                    lastProcessed = end;
+                  }
                 }
               } catch (e) {
                 // Not valid JSON, skip this position

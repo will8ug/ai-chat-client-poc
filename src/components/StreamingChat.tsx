@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { sendStreamingChatMessage } from '../services/chatService';
+import { sendStreamingChatMessage, StreamingChunk } from '../services/chatService';
 import { ChatMessage } from './ChatMessage';
 import { Subscription } from 'rxjs';
 
 interface Message {
   text: string;
+  reasoningText?: string;
   isUser: boolean;
 }
 
@@ -13,6 +14,7 @@ export const StreamingChat: React.FC = () => {
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [streamingMessage, setStreamingMessage] = useState('');
+  const [streamingReasoning, setStreamingReasoning] = useState('');
   const subscriptionRef = useRef<Subscription | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
@@ -22,7 +24,7 @@ export const StreamingChat: React.FC = () => {
     if (messagesEndRef.current) {
       messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
     }
-  }, [messages, streamingMessage]);
+  }, [messages, streamingMessage, streamingReasoning]);
 
   useEffect(() => {
     return () => {
@@ -41,6 +43,7 @@ export const StreamingChat: React.FC = () => {
     setMessages((prev) => [...prev, { text: userMessage, isUser: true }]);
     setLoading(true);
     setStreamingMessage('');
+    setStreamingReasoning('');
 
     // Unsubscribe from previous subscription if exists
     if (subscriptionRef.current) {
@@ -48,11 +51,20 @@ export const StreamingChat: React.FC = () => {
     }
 
     let accumulatedContent = '';
+    let accumulatedReasoning = '';
 
     const subscription = sendStreamingChatMessage({ message: userMessage }).subscribe({
-      next: (content) => {
-        accumulatedContent += content;
-        setStreamingMessage(accumulatedContent);
+      next: (chunk: StreamingChunk) => {
+        if (chunk.content !== undefined) {
+          // Handle empty strings properly - don't show "null" or "undefined"
+          accumulatedContent += chunk.content || '';
+          setStreamingMessage(accumulatedContent);
+        }
+        if (chunk.reasoningContent !== undefined) {
+          // Handle empty strings properly - don't show "null" or "undefined"
+          accumulatedReasoning += chunk.reasoningContent || '';
+          setStreamingReasoning(accumulatedReasoning);
+        }
       },
       error: (error) => {
         setMessages((prev) => [
@@ -61,13 +73,18 @@ export const StreamingChat: React.FC = () => {
         ]);
         setLoading(false);
         setStreamingMessage('');
+        setStreamingReasoning('');
       },
       complete: () => {
-        if (accumulatedContent) {
-          setMessages((prev) => [...prev, { text: accumulatedContent, isUser: false }]);
-        }
+        // Always save the message, even if both are empty (to show empty columns)
+        setMessages((prev) => [...prev, { 
+          text: accumulatedContent || '', 
+          reasoningText: accumulatedReasoning || undefined,
+          isUser: false 
+        }]);
         setLoading(false);
         setStreamingMessage('');
+        setStreamingReasoning('');
       },
     });
 
@@ -87,26 +104,48 @@ export const StreamingChat: React.FC = () => {
         <h2>Streaming Chat</h2>
       </div>
       <div className="chat-messages" ref={messagesContainerRef}>
-        {messages.length === 0 && !streamingMessage && (
+        {messages.length === 0 && streamingMessage === '' && streamingReasoning === '' && !loading && (
           <div className="empty-state">
             Start a conversation with the AI assistant (streaming mode)
           </div>
         )}
         {messages.map((msg, index) => (
-          <ChatMessage key={index} message={msg.text} isUser={msg.isUser} />
+          <ChatMessage 
+            key={index} 
+            message={msg.text} 
+            reasoningText={msg.reasoningText}
+            isUser={msg.isUser} 
+          />
         ))}
-        {streamingMessage && (
+        {(streamingMessage !== '' || streamingReasoning !== '' || loading) && (
           <div className="chat-message ai">
-            <div className="message-content streaming">
-              {streamingMessage}
-              <span className="cursor">▋</span>
-            </div>
-          </div>
-        )}
-        {loading && !streamingMessage && (
-          <div className="chat-message ai">
-            <div className="message-content loading">
-              <span className="typing-indicator">Connecting...</span>
+            <div className="message-columns">
+              <div className="message-column content-column">
+                <div className="column-label">Answer</div>
+                {loading && streamingMessage === '' ? (
+                  <div className="message-content loading">
+                    <span className="typing-indicator">Thinking...</span>
+                  </div>
+                ) : (
+                  <div className="message-content streaming">
+                    {streamingMessage || ''}
+                    {streamingMessage !== '' && <span className="cursor">▋</span>}
+                  </div>
+                )}
+              </div>
+              <div className="message-column reasoning-column">
+                <div className="column-label">Reasoning</div>
+                {loading && streamingReasoning === '' ? (
+                  <div className="reasoning-content loading">
+                    <span className="typing-indicator">Thinking...</span>
+                  </div>
+                ) : (
+                  <div className="reasoning-content streaming">
+                    {streamingReasoning || ''}
+                    {streamingReasoning !== '' && <span className="cursor">▋</span>}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         )}
